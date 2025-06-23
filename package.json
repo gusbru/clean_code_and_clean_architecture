@@ -1,0 +1,28 @@
+{
+  "name": "clean_code_and_clean_architecture",
+  "version": "1.0.0",
+  "description": "Clean Code e Clean Architecture - Turma 22",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gusbru/clean_code_and_clean_architecture.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gusbru/clean_code_and_clean_architecture/issues"
+  },
+  "homepage": "https://github.com/gusbru/clean_code_and_clean_architecture#readme",
+  "dependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.0.2",
+    "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
