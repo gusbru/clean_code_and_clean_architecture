@@ -1,3 +1,6 @@
 {
-    "dotnet.defaultSolution": "WebApplication.sln"
+    "dotnet.defaultSolution": "WebApplication.sln",
+    "cSpell.words": [
+        "ccca"
+    ]
 }

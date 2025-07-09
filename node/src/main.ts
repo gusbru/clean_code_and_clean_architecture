@@ -4,7 +4,6 @@ import pgPromise  from "pg-promise";
 
 const app = express();
 app.use(express.json());
-// Connect to DB using pg-promise
 const db = pgPromise()({
     host: "db",
     port: 5432,
@@ -13,17 +12,17 @@ const db = pgPromise()({
     password: "postgres"
 });
 
-const isNameValid = (name: string): boolean => {
+function isNameValid(name: string): boolean {
     return name.split(" ").length == 2;
 }
 
-const isEmailValid = (email: string): boolean => {
+function isEmailValid(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
 
-const isEmailDuplicated = async (email: string): Promise<boolean> => {
-    const accounts = await db.query("select * from ccca.users where email = $1", [email]);
+async function isEmailDuplicated(email: string): Promise<boolean> {
+    const accounts = await db.query("select * from ccca.account where email = $1", [email]);
     return accounts.length !== 0;
 }
 
@@ -74,8 +73,8 @@ function isValidUUID(uuid: string): boolean {
     return uuidRegex.test(uuid);
 }
 
-async function isValidAccount(accountId: string): Promise<boolean> {
-    const response = await db.oneOrNone("select * from ccca.users where account_id = $1", [accountId]);
+async function isExistingAccount(accountId: string): Promise<boolean> {
+    const response = await db.oneOrNone("select * from ccca.account where account_id = $1", [accountId]);
     return response?.account_id === accountId;
 }
 
@@ -107,13 +106,13 @@ app.post("/signup", async (req: Request, res: Response) => {
         res.status(400).json({ error: "Invalid password format." });
         return;
     }
-    await db.query("insert into ccca.users (account_id, name, email, document, password) values ($1, $2, $3, $4, $5)", [accountId, account.name, account.email, account.document, account.password]);
+    await db.query("insert into ccca.account (account_id, name, email, document, password) values ($1, $2, $3, $4, $5)", [accountId, account.name, account.email, account.document, account.password]);
     res.status(201).json({ accountId });
 });
 
 app.get("/accounts/:accountId", async (req: Request, res: Response) => {
     const { accountId } = req.params;
-    const account = await db.oneOrNone("select * from ccca.users where account_id = $1", [accountId]);
+    const account = await db.oneOrNone("select * from ccca.account where account_id = $1", [accountId]);
     if (!account) {
         res.status(404).json({ error: "Account not found" });
         return;
@@ -128,7 +127,7 @@ app.get("/accounts/:accountId", async (req: Request, res: Response) => {
 
 app.post("/deposit", async (req: Request, res: Response) => {
     const { accountId, assetId, quantity } = req.body;
-    if (!isValidUUID(accountId) || !(await isValidAccount(accountId))) {
+    if (!isValidUUID(accountId) || !(await isExistingAccount(accountId))) {
         res.status(400).json({ error: "Invalid accountId" });
         return;
     }
@@ -140,18 +139,38 @@ app.post("/deposit", async (req: Request, res: Response) => {
         res.status(400).json({ error: "Invalid assetId" });
         return;
     }
-    const assetExists = await db.oneOrNone("select * from ccca.assets where asset_id = $1 and account_id = $2", [assetId, accountId]);
+    const assetExists = await db.oneOrNone("select * from ccca.account_asset where asset_id = $1 and account_id = $2", [assetId, accountId]);
     if (assetExists) {
-        await db.query("update ccca.assets set amount = amount + $1 where asset_id = $2 and account_id = $3", [quantity, assetId, accountId]);
+        await db.query("update ccca.account_asset set quantity = quantity + $1 where asset_id = $2 and account_id = $3", [quantity, assetId, accountId]);
     } else {
-        await db.query("insert into ccca.assets (asset_id, account_id, amount) values ($1, $2, $3)", [assetId, accountId, quantity]);
+        await db.query("insert into ccca.account_asset (asset_id, account_id, quantity) values ($1, $2, $3)", [assetId, accountId, quantity]);
     }
     res.status(201).json({ message: "Deposit successful" });
 });
 
 app.post("/withdraw", async (req: Request, res: Response) => {
     const { accountId, assetId, quantity } = req.body;
+    if (!isValidUUID(accountId)) {
+        res.status(400).json({ error: "Invalid accountId" });
+        return;
+    }
+    if (!(await isExistingAccount(accountId))) {
+        res.status(400).json({ error: "Account not found" });
+        return;
+    }
+    if (!isValidAssetId(assetId)) {
+        res.status(400).json({ error: "Invalid assetId" });
+        return;
+    }
+    const accountAssetRequest = await db.oneOrNone("select * from ccca.account_asset where asset_id = $1 and account_id = $2", [assetId, accountId]);
+    if (!accountAssetRequest) {
+        res.status(400).json({ error: "Account or asset not found" });
+        return;
+    }
     
+    await db.query("update ccca.account_asset set quantity = quantity - $1 where asset_id = $2 and account_id = $3", [quantity, assetId, accountId]);
+
+    res.status(200).json({ message: "Withdraw successful" });
 });
 
 app.listen(3000);
