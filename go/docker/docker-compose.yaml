@@ -25,4 +25,4 @@ services:
       - ../database/create.sql:/docker-entrypoint-initdb.d/create.sql
 
 volumes:
-  db_data:
+  db_go_data:

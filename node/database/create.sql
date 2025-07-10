@@ -15,3 +15,29 @@ create table ccca.account_asset (
 	quantity numeric,
 	primary key (account_id, asset_id)
 );
+
+create table ccca.order (
+	order_id uuid,
+	market_id text,
+	account_id uuid,
+	side text,
+	quantity numeric,
+	price numeric,
+	fill_quantity numeric,
+	fill_price numeric,
+	status text,
+	timestamp timestamptz,
+	primary key (order_id)
+);
+
+create table ccca.trade (
+	trade_id uuid,
+	market_id text,
+	buy_order_id uuid,
+	sell_order_id uuid,
+	side text,
+	quantity numeric,
+	price numeric,
+	timestamp timestamptz,
+	primary key (trade_id)
+);
