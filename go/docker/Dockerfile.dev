@@ -3,10 +3,11 @@ FROM golang:1.24-bookworm
 WORKDIR /app
 
 # Copy go mod files
-COPY go.mod go.sum ./
+COPY go.mod go.sum Makefile ./
 
 # Download dependencies
 RUN go mod download
+RUN make install-tools
 
 # Expose port
 EXPOSE 3000

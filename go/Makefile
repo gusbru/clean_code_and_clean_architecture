@@ -88,9 +88,9 @@ docker-status:
 
 # Install tools
 install-tools:
-	$(GOGET) -u golang.org/x/tools/cmd/goimports
-	$(GOGET) -u golang.org/x/lint/golint
-	$(GOGET) -u github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	$(GOCMD) install golang.org/x/tools/cmd/goimports
+	$(GOCMD) install golang.org/x/lint/golint
+	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # Format code
 fmt:
