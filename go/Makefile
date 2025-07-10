@@ -37,6 +37,10 @@ clean:
 test:
 	$(GOTEST) -v $(GOTESTDIR)
 
+# Run tests without cache
+test-nocache:
+	$(GOTEST) -v -count=1 $(GOTESTDIR)
+
 # Run tests with coverage
 test-coverage:
 	$(GOTEST) -v -coverprofile=coverage.out $(GOTESTDIR)
@@ -88,8 +92,7 @@ docker-status:
 
 # Install tools
 install-tools:
-	$(GOCMD) install golang.org/x/tools/cmd/goimports
-	$(GOCMD) install golang.org/x/lint/golint
+	$(GOCMD) install golang.org/x/tools/cmd/goimports@latest
 	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # Format code

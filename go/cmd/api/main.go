@@ -3,13 +3,14 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 type Database struct {
@@ -23,12 +24,49 @@ func NewDatabase() *Database {
 	password := "postgres"
 	dbname := "app"
 
+	logrus.Info("Connecting to database", logrus.Fields{
+		"host":   host,
+		"port":   port,
+		"dbname": dbname,
+	})
+
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		panic(err)
+		logrus.WithError(err).Fatal("Failed to connect to database")
 	}
+	logrus.Info("Database connection established successfully")
 	return &Database{DB: db}
+}
+
+func LoggerMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		start := time.Now()
+		logrus.WithFields(logrus.Fields{
+			"method": c.Method(),
+			"path":   c.Path(),
+			"ip":     c.IP(),
+		}).Info("Incoming request")
+		err := c.Next()
+		status := c.Response().StatusCode()
+		fields := logrus.Fields{
+			"method":     c.Method(),
+			"path":       c.Path(),
+			"status":     status,
+			"latency_ms": time.Since(start).Milliseconds(),
+			"ip":         c.IP(),
+			"size":       len(c.Response().Body()),
+		}
+		switch {
+		case status >= 500:
+			logrus.WithFields(fields).Error("Server error")
+		case status >= 400:
+			logrus.WithFields(fields).Warn("Client error")
+		default:
+			logrus.WithFields(fields).Info("Request completed")
+		}
+		return err
+	}
 }
 
 type SignupRequest struct {
@@ -129,42 +167,54 @@ func (d *Document) extractDigits() string {
 }
 
 func main() {
-	r := gin.Default()
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+	logrus.SetLevel(logrus.InfoLevel)
+	logrus.Info("Starting application initialization")
+	app := fiber.New(fiber.Config{
+		EnablePrintRoutes: true,
+	})
+	app.Use(LoggerMiddleware())
 	db := NewDatabase()
 	defer db.DB.Close()
+	logrus.Info("Application started")
 
-	r.POST("/signup", func(c *gin.Context) {
+	app.Post("/signup", func(c *fiber.Ctx) error {
 		var req SignupRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-			return
+		if err := c.BodyParser(&req); err != nil {
+			logrus.WithError(err).Error("Failed to parse request body")
+			c.Status(fiber.StatusBadRequest)
+			return c.JSON(fiber.Map{"error": "Invalid request body"})
 		}
+		logrus.Info("Processing signup", logrus.Fields{
+			"email": req.Email,
+			"name":  req.Name,
+		})
 		if !ValidateName(req.Name) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid name"})
-			return
+			c.Status(fiber.StatusBadRequest)
+			return c.JSON(fiber.Map{"error": "Invalid name"})
 		}
 		if !ValidateEmail(req.Email) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email"})
-			return
+			c.Status(fiber.StatusBadRequest)
+			return c.JSON(fiber.Map{"error": "Invalid email"})
 		}
 		emailExists, err := CheckDuplicateEmail(db, req.Email)
 		if err != nil {
-			fmt.Println("Error checking duplicate email:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check email"})
-			return
+			logrus.WithError(err).Error("Error checking duplicate email")
+			c.Status(fiber.StatusInternalServerError)
+			return c.JSON(fiber.Map{"error": "Failed to check email"})
 		}
 		if emailExists {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists"})
-			return
+			c.Status(fiber.StatusBadRequest)
+			return c.JSON(fiber.Map{"error": "Email already exists"})
 		}
 		if !ValidatePassword(req.Password) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password"})
-			return
+			c.Status(fiber.StatusBadRequest)
+			return c.JSON(fiber.Map{"error": "Invalid password"})
 		}
 		document := Document{Digits: req.Document}
 		if !document.Validate() {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid document"})
-			return
+			c.Status(fiber.StatusBadRequest)
+			return c.JSON(fiber.Map{"error": "Invalid document"})
 		}
 		user := User{
 			AccountID: uuid.New(),
@@ -173,38 +223,45 @@ func main() {
 			Document:  document.Digits,
 			Password:  req.Password,
 		}
+		logrus.Info("Creating new account", logrus.Fields{
+			"account_id": user.AccountID,
+			"email":      user.Email,
+		})
 		query := `INSERT INTO ccca.account (account_id, name, email, document, password) VALUES ($1, $2, $3, $4, $5)`
 		_, err = db.DB.Exec(query, user.AccountID, user.Name, user.Email, user.Document, user.Password)
 		if err != nil {
-			fmt.Println("Error inserting account:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create account"})
-			return
+			logrus.WithError(err).Error("Error inserting account")
+			c.Status(fiber.StatusInternalServerError)
+			return c.JSON(fiber.Map{"error": "Failed to create account"})
 		}
-		c.JSON(http.StatusOK, gin.H{
-			"accountId": user.AccountID,
+		logrus.Info("Account created successfully", logrus.Fields{
+			"account_id": user.AccountID,
 		})
+		c.Status(fiber.StatusOK)
+		return c.JSON(fiber.Map{"accountId": user.AccountID})
 	})
 
-	r.GET("/accounts/:account_id", func(c *gin.Context) {
-		accountID := c.Param("account_id")
+	app.Get("/accounts/:account_id", func(c *fiber.Ctx) error {
+		accountID := c.Params("account_id")
 		query := `SELECT account_id, name, email, document, password FROM ccca.account WHERE account_id = $1`
 		var user User
 		err := db.DB.QueryRow(query, accountID).Scan(&user.AccountID, &user.Name, &user.Email, &user.Document, &user.Password)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Account not found"})
-				return
+				c.Status(fiber.StatusNotFound)
+				return c.JSON(fiber.Map{"error": "Account not found"})
 			}
-			fmt.Println("Error querying account:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve account"})
-			return
+			logrus.WithError(err).Error("Error querying account")
+			c.Status(fiber.StatusInternalServerError)
+			return c.JSON(fiber.Map{"error": "Failed to retrieve account"})
 		}
-		c.JSON(http.StatusOK, gin.H{
+		c.Status(fiber.StatusOK)
+		return c.JSON(fiber.Map{
 			"accountId": user.AccountID,
 		})
 	})
 
-	if err := r.Run(":3000"); err != nil {
-		fmt.Println("Error starting server:", err)
+	if err := app.Listen(":3000"); err != nil {
+		logrus.WithError(err).Error("Error starting server")
 	}
 }
