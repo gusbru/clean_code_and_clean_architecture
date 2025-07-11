@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,6 +85,34 @@ type User struct {
 	Password  string    `json:"password"`
 }
 
+type DepositRequest struct {
+	AccountID string  `json:"accountId"`
+	AssetID   AssetId `json:"assetId"`
+	Quantity  string  `json:"quantity"`
+}
+
+type AssetId string
+
+const (
+	AssetIdBTC AssetId = "BTC"
+	AssetIdUSD AssetId = "USD"
+)
+
+func (a AssetId) String() string {
+	switch a {
+	case AssetIdBTC:
+		return "BTC"
+	case AssetIdUSD:
+		return "USD"
+	default:
+		return "Unknown Asset"
+	}
+}
+
+func (a AssetId) IsValid() bool {
+	return a == AssetIdBTC || a == AssetIdUSD
+}
+
 func ValidateName(name string) bool {
 	return len(strings.Split(name, " ")) == 2
 }
@@ -109,6 +138,25 @@ func ValidatePassword(password string) bool {
 		strings.ContainsAny(password, "0123456789") &&
 		strings.ContainsAny(password, "abcdefghijklmnopqrstuvwxyz") &&
 		strings.ContainsAny(password, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+}
+
+func ValidateAccountExists(db *Database, accountID string) (bool, error) {
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM ccca.account WHERE account_id = $1)`
+	err := db.DB.QueryRow(query, accountID).Scan(&exists)
+	logrus.WithFields(logrus.Fields{
+		"account_id": accountID,
+		"exists":     exists,
+	}).Info("Checking account existence")
+	if err != nil {
+		logrus.WithError(err).Error("Error checking account existence")
+		return false, err
+	}
+	if !exists {
+		logrus.Warn("Account does not exist", logrus.Fields{"account_id": accountID})
+		return false, fmt.Errorf("account does not exist")
+	}
+	return true, nil
 }
 
 type Document struct {
@@ -166,6 +214,149 @@ func (d *Document) extractDigits() string {
 	return d.Digits[9:]
 }
 
+func isQuantityValid(quantity string) bool {
+	quantityInt, err := strconv.Atoi(quantity)
+	if err != nil || quantityInt < 0 {
+		return false
+	}
+	return true
+}
+
+func isDepositValid(depositRequest DepositRequest) (bool, error) {
+	if depositRequest.AccountID == "" {
+		return false, fmt.Errorf("accountId is required")
+	}
+	if depositRequest.AssetID == "" || !depositRequest.AssetID.IsValid() {
+		return false, fmt.Errorf("assetId is required and must be valid")
+	}
+	if depositRequest.Quantity == "" || !isQuantityValid(depositRequest.Quantity) {
+		return false, fmt.Errorf("quantity is required and must be a valid positive integer")
+	}
+	return true, nil
+}
+
+func handleSignup(c *fiber.Ctx, db *Database) error {
+	var req SignupRequest
+	if err := c.BodyParser(&req); err != nil {
+		logrus.WithError(err).Error("Failed to parse request body")
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	logrus.Info("Processing signup", logrus.Fields{
+		"email": req.Email,
+		"name":  req.Name,
+	})
+	if !ValidateName(req.Name) {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid name"})
+	}
+	if !ValidateEmail(req.Email) {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid email"})
+	}
+	emailExists, err := CheckDuplicateEmail(db, req.Email)
+	if err != nil {
+		logrus.WithError(err).Error("Error checking duplicate email")
+		c.Status(fiber.StatusInternalServerError)
+		return c.JSON(fiber.Map{"error": "Failed to check email"})
+	}
+	if emailExists {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Email already exists"})
+	}
+	if !ValidatePassword(req.Password) {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid password"})
+	}
+	document := Document{Digits: req.Document}
+	if !document.Validate() {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid document"})
+	}
+	user := User{
+		AccountID: uuid.New(),
+		Name:      req.Name,
+		Email:     req.Email,
+		Document:  document.Digits,
+		Password:  req.Password,
+	}
+	logrus.Info("Creating new account", logrus.Fields{
+		"account_id": user.AccountID,
+		"email":      user.Email,
+	})
+	query := `INSERT INTO ccca.account (account_id, name, email, document, password) VALUES ($1, $2, $3, $4, $5)`
+	_, err = db.DB.Exec(query, user.AccountID, user.Name, user.Email, user.Document, user.Password)
+	if err != nil {
+		logrus.WithError(err).Error("Error inserting account")
+		c.Status(fiber.StatusInternalServerError)
+		return c.JSON(fiber.Map{"error": "Failed to create account"})
+	}
+	logrus.Info("Account created successfully", logrus.Fields{
+		"account_id": user.AccountID,
+	})
+	c.Status(fiber.StatusOK)
+	return c.JSON(fiber.Map{"accountId": user.AccountID})
+}
+
+func handleGetAccount(c *fiber.Ctx, db *Database) error {
+	accountID := c.Params("account_id")
+	query := `SELECT account_id, name, email, document, password FROM ccca.account WHERE account_id = $1`
+	var user User
+	err := db.DB.QueryRow(query, accountID).Scan(&user.AccountID, &user.Name, &user.Email, &user.Document, &user.Password)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.Status(fiber.StatusNotFound)
+			return c.JSON(fiber.Map{"error": "Account not found"})
+		}
+		logrus.WithError(err).Error("Error querying account")
+		c.Status(fiber.StatusInternalServerError)
+		return c.JSON(fiber.Map{"error": "Failed to retrieve account"})
+	}
+	c.Status(fiber.StatusOK)
+	return c.JSON(fiber.Map{
+		"accountId": user.AccountID,
+	})
+}
+
+func handleDeposit(c *fiber.Ctx, db *Database) error {
+	var depositRequest DepositRequest
+	if err := c.BodyParser(&depositRequest); err != nil {
+		logrus.WithError(err).Error("Failed to parse deposit request body")
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid request body"})
+	}
+	logrus.Info("Processing deposit", logrus.Fields{
+		"account_id": depositRequest.AccountID,
+		"asset_id":   depositRequest.AssetID,
+		"quantity":   depositRequest.Quantity,
+	})
+	if valid, err := isDepositValid(depositRequest); !valid {
+		logrus.WithError(err).Error("Invalid deposit request")
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": err.Error()})
+	}
+	if exists, err := ValidateAccountExists(db, depositRequest.AccountID); !exists || err != nil {
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Account does not exist"})
+	}
+	query := `INSERT INTO ccca.account_asset (account_id, asset_id, quantity) VALUES ($1, $2, $3) ON CONFLICT (account_id, asset_id) DO UPDATE SET quantity = ccca.account_asset.quantity + EXCLUDED.quantity`
+	_, err := db.DB.Exec(query, depositRequest.AccountID, depositRequest.AssetID, depositRequest.Quantity)
+	if err != nil {
+		logrus.WithError(err).Error("Error inserting deposit")
+		c.Status(fiber.StatusInternalServerError)
+		return c.JSON(fiber.Map{"error": "Failed to process deposit"})
+	}
+	logrus.Info("Deposit processed successfully", logrus.Fields{
+		"accountId": depositRequest.AccountID,
+		"assetId":   depositRequest.AssetID,
+		"quantity":  depositRequest.Quantity,
+	})
+	c.Status(fiber.StatusOK)
+	return c.JSON(fiber.Map{
+		"message": "Deposit completed",
+	})
+}
+
 func main() {
 	logrus.SetFormatter(&logrus.JSONFormatter{})
 	logrus.SetLevel(logrus.InfoLevel)
@@ -179,86 +370,15 @@ func main() {
 	logrus.Info("Application started")
 
 	app.Post("/signup", func(c *fiber.Ctx) error {
-		var req SignupRequest
-		if err := c.BodyParser(&req); err != nil {
-			logrus.WithError(err).Error("Failed to parse request body")
-			c.Status(fiber.StatusBadRequest)
-			return c.JSON(fiber.Map{"error": "Invalid request body"})
-		}
-		logrus.Info("Processing signup", logrus.Fields{
-			"email": req.Email,
-			"name":  req.Name,
-		})
-		if !ValidateName(req.Name) {
-			c.Status(fiber.StatusBadRequest)
-			return c.JSON(fiber.Map{"error": "Invalid name"})
-		}
-		if !ValidateEmail(req.Email) {
-			c.Status(fiber.StatusBadRequest)
-			return c.JSON(fiber.Map{"error": "Invalid email"})
-		}
-		emailExists, err := CheckDuplicateEmail(db, req.Email)
-		if err != nil {
-			logrus.WithError(err).Error("Error checking duplicate email")
-			c.Status(fiber.StatusInternalServerError)
-			return c.JSON(fiber.Map{"error": "Failed to check email"})
-		}
-		if emailExists {
-			c.Status(fiber.StatusBadRequest)
-			return c.JSON(fiber.Map{"error": "Email already exists"})
-		}
-		if !ValidatePassword(req.Password) {
-			c.Status(fiber.StatusBadRequest)
-			return c.JSON(fiber.Map{"error": "Invalid password"})
-		}
-		document := Document{Digits: req.Document}
-		if !document.Validate() {
-			c.Status(fiber.StatusBadRequest)
-			return c.JSON(fiber.Map{"error": "Invalid document"})
-		}
-		user := User{
-			AccountID: uuid.New(),
-			Name:      req.Name,
-			Email:     req.Email,
-			Document:  document.Digits,
-			Password:  req.Password,
-		}
-		logrus.Info("Creating new account", logrus.Fields{
-			"account_id": user.AccountID,
-			"email":      user.Email,
-		})
-		query := `INSERT INTO ccca.account (account_id, name, email, document, password) VALUES ($1, $2, $3, $4, $5)`
-		_, err = db.DB.Exec(query, user.AccountID, user.Name, user.Email, user.Document, user.Password)
-		if err != nil {
-			logrus.WithError(err).Error("Error inserting account")
-			c.Status(fiber.StatusInternalServerError)
-			return c.JSON(fiber.Map{"error": "Failed to create account"})
-		}
-		logrus.Info("Account created successfully", logrus.Fields{
-			"account_id": user.AccountID,
-		})
-		c.Status(fiber.StatusOK)
-		return c.JSON(fiber.Map{"accountId": user.AccountID})
+		return handleSignup(c, db)
 	})
 
 	app.Get("/accounts/:account_id", func(c *fiber.Ctx) error {
-		accountID := c.Params("account_id")
-		query := `SELECT account_id, name, email, document, password FROM ccca.account WHERE account_id = $1`
-		var user User
-		err := db.DB.QueryRow(query, accountID).Scan(&user.AccountID, &user.Name, &user.Email, &user.Document, &user.Password)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				c.Status(fiber.StatusNotFound)
-				return c.JSON(fiber.Map{"error": "Account not found"})
-			}
-			logrus.WithError(err).Error("Error querying account")
-			c.Status(fiber.StatusInternalServerError)
-			return c.JSON(fiber.Map{"error": "Failed to retrieve account"})
-		}
-		c.Status(fiber.StatusOK)
-		return c.JSON(fiber.Map{
-			"accountId": user.AccountID,
-		})
+		return handleGetAccount(c, db)
+	})
+
+	app.Post("/deposit", func(c *fiber.Ctx) error {
+		return handleDeposit(c, db)
 	})
 
 	if err := app.Listen(":3000"); err != nil {
