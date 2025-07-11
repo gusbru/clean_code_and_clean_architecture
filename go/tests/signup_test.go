@@ -44,7 +44,7 @@ func TestSignupEndpoint(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected status code 200 for account check")
-	var accountResponse map[string]string
+	var accountResponse map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&accountResponse)
 	if err != nil {
 		t.Fatal(err)

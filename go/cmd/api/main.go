@@ -78,11 +78,24 @@ type SignupRequest struct {
 }
 
 type User struct {
-	AccountID uuid.UUID `json:"account_id"`
+	AccountID uuid.UUID `json:"accountId"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	Document  string    `json:"document"`
 	Password  string    `json:"password"`
+}
+
+type Account struct {
+	AccountID uuid.UUID `json:"accountId"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Document  string    `json:"document"`
+	Assets    []Asset   `json:"assets"`
+}
+
+type Asset struct {
+	AssetID  AssetId `json:"assetId"`
+	Quantity string  `json:"quantity"`
 }
 
 type DepositRequest struct {
@@ -145,7 +158,7 @@ func ValidateAccountExists(db *Database, accountID string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM ccca.account WHERE account_id = $1)`
 	err := db.DB.QueryRow(query, accountID).Scan(&exists)
 	logrus.WithFields(logrus.Fields{
-		"account_id": accountID,
+		"accountId": accountID,
 		"exists":     exists,
 	}).Info("Checking account existence")
 	if err != nil {
@@ -153,7 +166,7 @@ func ValidateAccountExists(db *Database, accountID string) (bool, error) {
 		return false, err
 	}
 	if !exists {
-		logrus.Warn("Account does not exist", logrus.Fields{"account_id": accountID})
+		logrus.Warn("Account does not exist", logrus.Fields{"accountId": accountID})
 		return false, fmt.Errorf("account does not exist")
 	}
 	return true, nil
@@ -235,6 +248,36 @@ func isDepositValid(depositRequest DepositRequest) (bool, error) {
 	return true, nil
 }
 
+func isValidUUID(u string) bool {
+	_, err := uuid.Parse(u)
+	return err == nil
+}
+
+func validateSignupRequest(req SignupRequest, db *Database) (bool, error) {
+	if !ValidateName(req.Name) {
+		return false, fmt.Errorf("Invalid name")
+	}
+	if !ValidateEmail(req.Email) {
+		return false, fmt.Errorf("Invalid email")
+	}
+	emailExists, err := CheckDuplicateEmail(db, req.Email)
+	if err != nil {
+		logrus.WithError(err).Error("Error checking duplicate email")
+		return false, fmt.Errorf("Failed to check email")
+	}
+	if emailExists {
+		return false, fmt.Errorf("Email already exists")
+	}
+	if !ValidatePassword(req.Password) {
+		return false, fmt.Errorf("Invalid password")
+	}
+	document := Document{Digits: req.Document}
+	if !document.Validate() {
+		return false, fmt.Errorf("Invalid document")
+	}
+	return true, nil
+}
+
 func handleSignup(c *fiber.Ctx, db *Database) error {
 	var req SignupRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -242,37 +285,16 @@ func handleSignup(c *fiber.Ctx, db *Database) error {
 		c.Status(fiber.StatusBadRequest)
 		return c.JSON(fiber.Map{"error": "Invalid request body"})
 	}
-	logrus.Info("Processing signup", logrus.Fields{
+	logrus.Info("Processing signup ", logrus.Fields{
 		"email": req.Email,
 		"name":  req.Name,
 	})
-	if !ValidateName(req.Name) {
+	if valid, err := validateSignupRequest(req, db); !valid {
+		logrus.WithError(err).Error("Invalid signup request")
 		c.Status(fiber.StatusBadRequest)
-		return c.JSON(fiber.Map{"error": "Invalid name"})
-	}
-	if !ValidateEmail(req.Email) {
-		c.Status(fiber.StatusBadRequest)
-		return c.JSON(fiber.Map{"error": "Invalid email"})
-	}
-	emailExists, err := CheckDuplicateEmail(db, req.Email)
-	if err != nil {
-		logrus.WithError(err).Error("Error checking duplicate email")
-		c.Status(fiber.StatusInternalServerError)
-		return c.JSON(fiber.Map{"error": "Failed to check email"})
-	}
-	if emailExists {
-		c.Status(fiber.StatusBadRequest)
-		return c.JSON(fiber.Map{"error": "Email already exists"})
-	}
-	if !ValidatePassword(req.Password) {
-		c.Status(fiber.StatusBadRequest)
-		return c.JSON(fiber.Map{"error": "Invalid password"})
+		return c.JSON(fiber.Map{"error": err.Error()})
 	}
 	document := Document{Digits: req.Document}
-	if !document.Validate() {
-		c.Status(fiber.StatusBadRequest)
-		return c.JSON(fiber.Map{"error": "Invalid document"})
-	}
 	user := User{
 		AccountID: uuid.New(),
 		Name:      req.Name,
@@ -281,28 +303,33 @@ func handleSignup(c *fiber.Ctx, db *Database) error {
 		Password:  req.Password,
 	}
 	logrus.Info("Creating new account", logrus.Fields{
-		"account_id": user.AccountID,
+		"accountId": user.AccountID,
 		"email":      user.Email,
 	})
 	query := `INSERT INTO ccca.account (account_id, name, email, document, password) VALUES ($1, $2, $3, $4, $5)`
-	_, err = db.DB.Exec(query, user.AccountID, user.Name, user.Email, user.Document, user.Password)
+	_, err := db.DB.Exec(query, user.AccountID, user.Name, user.Email, user.Document, user.Password)
 	if err != nil {
 		logrus.WithError(err).Error("Error inserting account")
 		c.Status(fiber.StatusInternalServerError)
 		return c.JSON(fiber.Map{"error": "Failed to create account"})
 	}
 	logrus.Info("Account created successfully", logrus.Fields{
-		"account_id": user.AccountID,
+		"accountId": user.AccountID,
 	})
 	c.Status(fiber.StatusOK)
 	return c.JSON(fiber.Map{"accountId": user.AccountID})
 }
 
 func handleGetAccount(c *fiber.Ctx, db *Database) error {
-	accountID := c.Params("account_id")
-	query := `SELECT account_id, name, email, document, password FROM ccca.account WHERE account_id = $1`
-	var user User
-	err := db.DB.QueryRow(query, accountID).Scan(&user.AccountID, &user.Name, &user.Email, &user.Document, &user.Password)
+	accountID := c.Params("accountId")
+	if !isValidUUID(accountID) {
+		logrus.Warn("Invalid account ID format", logrus.Fields{"accountId": accountID})
+		c.Status(fiber.StatusBadRequest)
+		return c.JSON(fiber.Map{"error": "Invalid account ID format"})
+	}
+	query := `SELECT account_id, name, email, document FROM ccca.account WHERE account_id = $1`
+	var account Account
+	err := db.DB.QueryRow(query, accountID).Scan(&account.AccountID, &account.Name, &account.Email, &account.Document)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.Status(fiber.StatusNotFound)
@@ -312,9 +339,36 @@ func handleGetAccount(c *fiber.Ctx, db *Database) error {
 		c.Status(fiber.StatusInternalServerError)
 		return c.JSON(fiber.Map{"error": "Failed to retrieve account"})
 	}
+	account.Assets = []Asset{}
+	assetQuery := `SELECT asset_id, quantity FROM ccca.account_asset WHERE account_id = $1`
+	rows, err := db.DB.Query(assetQuery, account.AccountID)
+	if err != nil {
+		logrus.WithError(err).Error("Error querying account assets")
+		c.Status(fiber.StatusInternalServerError)
+		return c.JSON(fiber.Map{"error": "Failed to retrieve account assets"})
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var asset Asset
+		if err := rows.Scan(&asset.AssetID, &asset.Quantity); err != nil {
+			logrus.WithError(err).Error("Error scanning asset")
+			c.Status(fiber.StatusInternalServerError)
+			return c.JSON(fiber.Map{"error": "Failed to retrieve account assets"})
+		}
+		account.Assets = append(account.Assets, asset)
+	}
+	if err := rows.Err(); err != nil {
+		logrus.WithError(err).Error("Error iterating over account assets")
+		c.Status(fiber.StatusInternalServerError)
+		return c.JSON(fiber.Map{"error": "Failed to retrieve account assets"})
+	}
 	c.Status(fiber.StatusOK)
 	return c.JSON(fiber.Map{
-		"accountId": user.AccountID,
+		"accountId": account.AccountID,
+		"name":      account.Name,
+		"email":     account.Email,
+		"document":  account.Document,
+		"assets":    account.Assets,
 	})
 }
 
@@ -326,8 +380,8 @@ func handleDeposit(c *fiber.Ctx, db *Database) error {
 		return c.JSON(fiber.Map{"error": "Invalid request body"})
 	}
 	logrus.Info("Processing deposit", logrus.Fields{
-		"account_id": depositRequest.AccountID,
-		"asset_id":   depositRequest.AssetID,
+		"accountId": depositRequest.AccountID,
+		"assetId":   depositRequest.AssetID,
 		"quantity":   depositRequest.Quantity,
 	})
 	if valid, err := isDepositValid(depositRequest); !valid {
@@ -373,7 +427,7 @@ func main() {
 		return handleSignup(c, db)
 	})
 
-	app.Get("/accounts/:account_id", func(c *fiber.Ctx) error {
+	app.Get("/accounts/:accountId", func(c *fiber.Ctx) error {
 		return handleGetAccount(c, db)
 	})
 
