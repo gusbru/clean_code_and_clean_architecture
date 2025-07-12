@@ -3,7 +3,8 @@ GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
-GOTESTDIR=./tests/...
+GOTESTFOLDER=./tests
+GOTESTDIR=$(GOTESTFOLDER)/...
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 BINARY_NAME=app
@@ -45,6 +46,14 @@ test-nocache:
 test-coverage:
 	$(GOTEST) -v -coverprofile=coverage.out $(GOTESTDIR)
 	$(GOCMD) tool cover -html=coverage.out
+
+# Test specific function. Take the function name as an argument
+test-func:
+	@if [ -z "$(function)" ]; then \
+        echo "Usage: make test-func function=TestName"; \
+        exit 1; \
+    fi
+	$(GOTEST) -v -count=1 -run $(function) $(GOTESTFOLDER)
 
 # Download dependencies
 deps:

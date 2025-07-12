@@ -8,10 +8,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gusbru/clean_code_and_clean_architecture/internal/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func CreateValidAccount() (string, error) {
+type CreateAccountOptions struct {
+	AddAsset bool
+	Asset    types.Asset
+}
+
+func CreateValidAccount(options CreateAccountOptions) (string, error) {
 	inputNewAccount := map[string]string{
 		"name":     "Gustavo B",
 		"email":    fmt.Sprintf("gustavo-%d@example.com", time.Now().UnixNano()),
@@ -33,12 +39,41 @@ func CreateValidAccount() (string, error) {
 		return "", err
 	}
 	newAccountID := responseNewAccount["accountId"]
+
+	if options.AddAsset {
+		assetId := "BTC"
+		quantity := "10"
+		if options.Asset.AssetID != "" {
+			assetId = options.Asset.AssetID.String()
+		}
+		if !options.Asset.Quantity.IsZero() {
+			quantity = options.Asset.Quantity.String()
+		}
+		inputAsset := map[string]string{
+			"accountId": newAccountID,
+			"assetId":   assetId,
+			"quantity":  quantity,
+		}
+		inputAssetJson, err := json.Marshal(inputAsset)
+		if err != nil {
+			return "", err
+		}
+		resp, err = http.Post("http://app:3000/deposit", "application/json", bytes.NewBuffer(inputAssetJson))
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("failed to add asset, status code: %d", resp.StatusCode)
+		}
+	}
+
 	return newAccountID, nil
 }
 
 func TestDepositEndpoint(t *testing.T) {
 	// Given
-	newAccountID, err := CreateValidAccount()
+	newAccountID, err := CreateValidAccount(CreateAccountOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +123,7 @@ func TestDepositEndpoint(t *testing.T) {
 }
 
 func TestInvalidDepositRequest(t *testing.T) {
-	accountID, err := CreateValidAccount()
+	accountID, err := CreateValidAccount(CreateAccountOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +216,7 @@ func TestInvalidDepositRequest(t *testing.T) {
 
 func TestGetAccountWithNoAssets(t *testing.T) {
 	// Given
-	newAccountID, err := CreateValidAccount()
+	newAccountID, err := CreateValidAccount(CreateAccountOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
