@@ -226,4 +226,6 @@ Tests use Docker containers to ensure consistent testing environments.
 
 ## License
 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 This project is for educational purposes demonstrating clean code and clean architecture principles.
