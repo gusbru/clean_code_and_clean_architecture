@@ -5,6 +5,7 @@ A multi-language implementation of a trading platform API demonstrating clean co
 ## Project Overview
 
 This trading platform provides basic account management and asset trading functionality including:
+
 - User account creation with validation
 - Asset deposits and withdrawals
 - Account balance management
@@ -13,6 +14,7 @@ This trading platform provides basic account management and asset trading functi
 ## Architecture
 
 The project follows clean architecture principles with:
+
 - **Domain Layer**: Business logic and validation rules
 - **Application Layer**: Use cases and business workflows
 - **Infrastructure Layer**: Database access and external dependencies
@@ -20,7 +22,7 @@ The project follows clean architecture principles with:
 
 ## Project Structure
 
-```
+```bash
 ├── node/                    # Node.js/TypeScript implementation
 │   ├── src/
 │   │   └── main.ts         # Main application entry point
@@ -40,18 +42,22 @@ The project follows clean architecture principles with:
 ## API Endpoints
 
 ### Authentication
+
 - `POST /signup` - Create a new user account
 
 ### Account Management
+
 - `GET /accounts/{accountId}` - Get account details and assets
 
 ### Trading Operations
+
 - `POST /deposit` - Deposit assets to an account
 - `POST /withdraw` - Withdraw assets from an account
 
 ## Getting Started
 
 ### Prerequisites
+
 - Docker and Docker Compose
 - Node.js 18+ (for Node.js version)
 - Go 1.21+ (for Go version)
@@ -59,16 +65,19 @@ The project follows clean architecture principles with:
 ### Running the Node.js Version
 
 1. Navigate to the node directory:
+
 ```bash
 cd node
 ```
 
 2. Start the services:
+
 ```bash
 npm run compose:up:build
 ```
 
 3. Run tests:
+
 ```bash
 npm run test
 ```
@@ -76,16 +85,19 @@ npm run test
 ### Running the Go Version
 
 1. Navigate to the go directory:
+
 ```bash
 cd go
 ```
 
 2. Start the services:
+
 ```bash
 make docker-up
 ```
 
 3. Run tests:
+
 ```bash
 make test
 ```
@@ -93,6 +105,7 @@ make test
 ## API Usage Examples
 
 ### Create Account
+
 ```bash
 curl -X POST http://localhost:3000/signup \
   -H "Content-Type: application/json" \
@@ -105,6 +118,7 @@ curl -X POST http://localhost:3000/signup \
 ```
 
 ### Deposit Assets
+
 ```bash
 curl -X POST http://localhost:3000/deposit \
   -H "Content-Type: application/json" \
@@ -116,6 +130,7 @@ curl -X POST http://localhost:3000/deposit \
 ```
 
 ### Withdraw Assets
+
 ```bash
 curl -X POST http://localhost:3000/withdraw \
   -H "Content-Type: application/json" \
@@ -127,6 +142,7 @@ curl -X POST http://localhost:3000/withdraw \
 ```
 
 ### Get Account Details
+
 ```bash
 curl -X GET http://localhost:3000/accounts/{accountId}
 ```
@@ -134,12 +150,14 @@ curl -X GET http://localhost:3000/accounts/{accountId}
 ## Validation Rules
 
 ### Account Creation
+
 - **Name**: Must contain first and last name (exactly 2 words)
 - **Email**: Must be a valid email format
 - **Password**: Minimum 8 characters with at least one uppercase letter, one lowercase letter, and one number
 - **Document**: Must be a valid 11-digit Brazilian CPF format
 
 ### Asset Operations
+
 - **Asset ID**: Must be one of the supported assets (BTC, USD)
 - **Quantity**: Must be a positive number
 - **Account ID**: Must be a valid UUID and existing account
@@ -156,6 +174,7 @@ The application uses PostgreSQL with the following main tables:
 ## Development
 
 ### Node.js Commands
+
 ```bash
 # Start development server
 npm run start:dev
@@ -170,6 +189,7 @@ npm run compose:logs
 ```
 
 ### Go Commands
+
 ```bash
 # Build and run
 make run
@@ -189,6 +209,7 @@ make docker-logs
 ## Testing
 
 Both implementations include comprehensive integration tests covering:
+
 - Account creation with various validation scenarios
 - Asset deposit and withdrawal operations
 - Error handling and edge cases

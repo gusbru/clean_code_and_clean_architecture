@@ -117,60 +117,6 @@ func ValidateAccountExists(db *Database, accountID string) (bool, error) {
 	return true, nil
 }
 
-type Document struct {
-	Digits string
-}
-
-func (d *Document) Validate() bool {
-	if d.Digits == "" {
-		return false
-	}
-	d.clean()
-	if len(d.Digits) != 11 {
-		return false
-	}
-	if d.allDigitsSame() {
-		return false
-	}
-	return d.extractDigits() == fmt.Sprintf("%d%d", d.calculateDigit(10), d.calculateDigit(11))
-}
-
-func (d *Document) clean() {
-	// Remove non-numeric characters
-	re := regexp.MustCompile(`\D`)
-	d.Digits = re.ReplaceAllString(d.Digits, "")
-}
-
-func (d *Document) allDigitsSame() bool {
-	if len(d.Digits) == 0 {
-		return false
-	}
-	firstDigit := d.Digits[0]
-	for i := 1; i < len(d.Digits); i++ {
-		if d.Digits[i] != firstDigit {
-			return false
-		}
-	}
-	return true
-}
-
-func (d *Document) calculateDigit(factor int) int {
-	sum := 0
-	digitsToProcess := factor - 1
-	for i := 0; i < digitsToProcess && i < len(d.Digits); i++ {
-		digit := int(d.Digits[i] - '0')
-		sum += digit * (factor - i)
-	}
-	remainder := sum % 11
-	if remainder < 2 {
-		return 0
-	}
-	return 11 - remainder
-}
-
-func (d *Document) extractDigits() string {
-	return d.Digits[9:]
-}
 
 func isQuantityValid(quantity decimal.Decimal) bool {
 	return quantity.GreaterThanOrEqual(decimal.Zero)
@@ -212,7 +158,7 @@ func validateSignupRequest(req types.SignupRequest, db *Database) (bool, error) 
 	if !ValidatePassword(req.Password) {
 		return false, fmt.Errorf("Invalid password")
 	}
-	document := Document{Digits: req.Document}
+	document := types.Document{Digits: req.Document}
 	if !document.Validate() {
 		return false, fmt.Errorf("Invalid document")
 	}
@@ -235,7 +181,7 @@ func handleSignup(c *fiber.Ctx, db *Database) error {
 		c.Status(fiber.StatusBadRequest)
 		return c.JSON(fiber.Map{"error": err.Error()})
 	}
-	document := Document{Digits: req.Document}
+	document := types.Document{Digits: req.Document}
 	user := types.User{
 		AccountID: uuid.New(),
 		Name:      req.Name,
@@ -424,6 +370,10 @@ func handleWithdraw(c *fiber.Ctx, db *Database) error {
 	return c.JSON(fiber.Map{})
 }
 
+func handleAuthToken(c *fiber.Ctx) error {
+
+}
+
 func main() {
 	logrus.SetFormatter(&logrus.JSONFormatter{})
 	logrus.SetLevel(logrus.InfoLevel)
@@ -434,6 +384,7 @@ func main() {
 	app.Use(LoggerMiddleware())
 	db := NewDatabase()
 	defer db.DB.Close()
+
 	logrus.Info("Application started")
 
 	app.Post("/signup", func(c *fiber.Ctx) error {
@@ -450,6 +401,10 @@ func main() {
 
 	app.Post("/withdraw", func(c *fiber.Ctx) error {
 		return handleWithdraw(c, db)
+	})
+
+	app.Get("/auth/token", func(c *fiber.Ctx) error {
+		return handleAuthToken(c)
 	})
 
 	if err := app.Listen(":3000"); err != nil {
