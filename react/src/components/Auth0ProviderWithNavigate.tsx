@@ -3,14 +3,13 @@ import { useNavigate } from "react-router-dom";
 
 interface Auth0ProviderWithNavigateProps {
   children: React.ReactNode;
+  domain?: string;
+  clientId?: string;
+  redirectUri?: string;
 }
 
-export const Auth0ProviderWithNavigate = ({ children } : Auth0ProviderWithNavigateProps) => {
+export const Auth0ProviderWithNavigate = ({ children, domain, clientId, redirectUri } : Auth0ProviderWithNavigateProps) => {
   const navigate = useNavigate();
-
-  const domain = "dev-w1h1qtw3.auth0.com";
-  const clientId = "aEIMQg1p01kWtU8Of5KcfZBYYBp5CfPp";
-  const redirectUri = "http://localhost:5174";
 
   const onRedirectCallback = (appState: AppState | undefined) => {
     navigate(appState?.returnTo || window.location.pathname);
