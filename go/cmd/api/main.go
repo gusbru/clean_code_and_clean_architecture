@@ -371,7 +371,7 @@ func handleWithdraw(c *fiber.Ctx, db *Database) error {
 }
 
 func handleAuthToken(c *fiber.Ctx) error {
-
+	return nil
 }
 
 func main() {
