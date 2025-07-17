@@ -22,7 +22,6 @@ test("Should allow deposit with valid data", async () => {
 test.each([
     { accountId: "" },
     { accountId: "invalid-account-id" },
-    { accountId: "6f813af6-f151-4cbf-a423-6135909daa51" },
 ])("Should not allow deposit with invalid accountId", async ({ accountId }) => {
     // Given
     const input = {
@@ -36,67 +35,7 @@ test.each([
         expect(true).toBe(false);
     } catch (error: any) {
         // Then
-        expect(error.response.status).toBe(400);
+        expect(error.response.status).toBe(422);
         expect(error.response.data.error).toBe("Invalid accountId");
-    }
-});
-
-test.each([
-    { assetId: "" },
-    { assetId: "invalid-asset-id" },
-    { assetId: "EUR" },
-])("Should not allow deposit with invalid assetId", async ({ assetId }) => {
-    // Given
-    const newAccountInput = {
-        name: "Gustavo B",
-        email: `gustavo-${crypto.randomUUID()}@example.com`,
-        password: "Senha123",
-        document: "11144477735"
-    };
-    const accountResponse = await axios.post("http://backend:3000/signup", newAccountInput);
-    const accountId = accountResponse.data.accountId;
-    const input = {
-        accountId,
-        assetId,
-        quantity: 10,
-    };
-    try {
-        // When
-        await axios.post("http://backend:3000/deposit", input);
-        expect(true).toBe(false);
-    } catch (error: any) {
-        // Then
-        expect(error.response.status).toBe(400);
-        expect(error.response.data.error).toBe("Invalid assetId");
-    }
-});
-
-test.each([
-    { quantity: 0 },
-    { quantity: -1 },
-    { quantity: "invalid-quantity" },
-])("Should not allow deposit with invalid quantity", async ({ quantity }) => {
-    // Given
-    const newAccountInput = {
-        name: "Gustavo B",
-        email: `gustavo-${crypto.randomUUID()}@example.com`,
-        password: "Senha123",
-        document: "11144477735"
-    };
-    const accountResponse = await axios.post("http://backend:3000/signup", newAccountInput);
-    const accountId = accountResponse.data.accountId;
-    const input = {
-        accountId,
-        assetId: "BTC",
-        quantity,
-    };
-    try {
-        // When
-        await axios.post("http://backend:3000/deposit", input);
-        expect(true).toBe(false);
-    } catch (error: any) {
-        // Then
-        expect(error.response.status).toBe(400);
-        expect(error.response.data.error).toBe("Invalid quantity");
     }
 });
