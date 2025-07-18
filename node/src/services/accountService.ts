@@ -8,7 +8,7 @@ import IAccountDAO from "../DAO/accountDAO";
 
 export default interface IAccountService {
     signup(account: any): Promise<{ accountId: string }>;
-    getAccountById(accountId: string): Promise<object>;
+    getAccountById(accountId: string): Promise<any>;
 }
 
 export class AccountService implements IAccountService {
