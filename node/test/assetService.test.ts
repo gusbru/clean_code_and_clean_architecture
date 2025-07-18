@@ -4,15 +4,16 @@ import { AccountDAOMemory } from "../src/DAO/accountDAO";
 import IAccountService, {
   AccountService,
 } from "../src/services/accountService";
+import { AccountAssetService, IAccountAssetService } from "../src/services/accountAssetService";
 
-let assetService: IAssetService;
-let accountService: IAccountService;
+let accountAssetService: IAccountAssetService;
 
 beforeEach(() => {
   const accountDAO = new AccountDAOMemory();
-  accountService = new AccountService(accountDAO);
+  const accountService = new AccountService(accountDAO);
   const assetDAO = new AssetDAOMemory();
-  assetService = new AssetService(assetDAO, accountService);
+  const assetService = new AssetService(assetDAO);
+  accountAssetService = new AccountAssetService(accountService, assetService);
 });
 
 test("Should allow withdrawal with valid data", async () => {
@@ -22,19 +23,15 @@ test("Should allow withdrawal with valid data", async () => {
     password: "Senha123",
     document: "11144477735",
   };
-  const { accountId } = await accountService.signup(newAccountInput);
-  const inputDeposit = {
-    accountId,
-    assetId: "BTC",
-    quantity: 10,
-  };
-  await assetService.deposit(inputDeposit);
+  const { accountId } = await accountAssetService.createAccountWithInitialAssets(newAccountInput, [
+    { assetId: "BTC", quantity: 10 },
+  ]);
   const inputWithdraw = {
     accountId,
     assetId: "BTC",
     quantity: 10,
   };
-  const { message } = await assetService.withdraw(inputWithdraw);
+  const { message } = await accountAssetService.withdraw(inputWithdraw);
   expect(message).toBe("Withdraw successful");
 });
 
@@ -44,7 +41,7 @@ test("Should not allow withdrawal with invalid accountId", async () => {
     assetId: "BTC",
     quantity: 10,
   };
-  await expect(() => assetService.withdraw(input)).rejects.toThrow(
+  await expect(() => accountAssetService.withdraw(input)).rejects.toThrow(
     "Invalid accountId"
   );
 });
@@ -55,7 +52,7 @@ test("Should not allow withdrawal with non-existent account", async () => {
     assetId: "BTC",
     quantity: 10,
   };
-  await expect(() => assetService.withdraw(input)).rejects.toThrow(
+  await expect(() => accountAssetService.withdraw(input)).rejects.toThrow(
     "Account not found"
   );
 });
@@ -71,13 +68,15 @@ test.each([
     password: "Senha123",
     document: "11144477735",
   };
-  const { accountId } = await accountService.signup(newAccountInput);
+  const { accountId } = await accountAssetService.createAccountWithInitialAssets(newAccountInput, [
+    { assetId: "BTC", quantity: 10 },
+  ]);
   const inputWithdraw = {
     accountId,
     assetId,
     quantity: 10,
   };
-  await expect(() => assetService.withdraw(inputWithdraw)).rejects.toThrow(
+  await expect(() => accountAssetService.withdraw(inputWithdraw)).rejects.toThrow(
     "Invalid assetId"
   );
 });
@@ -89,13 +88,15 @@ test("Should allow deposit with valid data", async () => {
     password: "Senha123",
     document: "11144477735",
   };
-  const { accountId } = await accountService.signup(newAccountInput);
+  const { accountId } = await accountAssetService.createAccountWithInitialAssets(newAccountInput, [
+    { assetId: "BTC", quantity: 10 },
+  ]);
   const inputDeposit = {
     accountId,
     assetId: "BTC",
-    quantity: 1,
+    quantity: 5,
   };
-  const { message } = await assetService.deposit(inputDeposit);
+  const { message } = await accountAssetService.deposit(inputDeposit);
   expect(message).toBe("Deposit successful");
 });
 
@@ -107,7 +108,7 @@ test.each([{ accountId: "" }, { accountId: "invalid-account-id" }])(
       assetId: "BTC",
       quantity: 10,
     };
-    await expect(() => assetService.deposit(input)).rejects.toThrow(
+    await expect(() => accountAssetService.deposit(input)).rejects.toThrow(
       "Invalid accountId"
     );
   }
@@ -124,13 +125,13 @@ test.each([
     password: "Senha123",
     document: "11144477735",
   };
-  const { accountId } = await accountService.signup(newAccountInput);
+  const { accountId } = await accountAssetService.accountService.signup(newAccountInput);
   const input = {
     accountId,
     assetId,
     quantity: 10,
   };
-  await expect(() => assetService.deposit(input)).rejects.toThrow(
+  await expect(() => accountAssetService.deposit(input)).rejects.toThrow(
     "Invalid assetId"
   );
 });
@@ -147,13 +148,13 @@ test.each([
     password: "Senha123",
     document: "11144477735",
   };
-  const { accountId } = await accountService.signup(newAccountInput);
+  const { accountId } = await accountAssetService.accountService.signup(newAccountInput);
   const input = {
     accountId,
     assetId: "BTC",
     quantity,
   };
-  await expect(() => assetService.deposit(input)).rejects.toThrow(
+  await expect(() => accountAssetService.deposit(input)).rejects.toThrow(
     "Invalid quantity"
   );
 });

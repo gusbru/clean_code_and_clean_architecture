@@ -46,7 +46,6 @@ export class OrderDAODatabase implements IOrderDAO {
       (status ? " and status = $2" : "");
     const params = status ? [accountId, status] : [accountId];
     const orders = await db.query(query, params);
-    console.log("Retrieved orders:", orders);
     await db.$pool.end();
     return orders.map((order: any) => ({
       orderId: order.order_id,

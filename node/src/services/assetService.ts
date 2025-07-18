@@ -1,20 +1,18 @@
-import IAccountService from "./accountService";
 import IAssetDAO from "../DAO/assetDAO";
 import { isValidAssetId } from "../validateAsset";
 import { isValidQuantity } from "../validateQuantity";
-import { isValidUUID } from "../validateUUID";
 
 export default interface IAssetService {
     deposit(depositRequest: any): Promise<{ message: string }>;
     withdraw(withdrawRequest: any): Promise<{ message: string }>;
+    getAssetsByAccountId(accountId: string): Promise<any[]>;
+    getAssetsById(accountId: string, assetId: string): Promise<any[]>;
 }
 
 export class AssetService implements IAssetService {
-    constructor(private assetDAO: IAssetDAO, private accountService: IAccountService) {}
+    constructor(private assetDAO: IAssetDAO) {}
 
     async deposit(depositRequest: any) {
-        if (!isValidUUID(depositRequest.accountId)) throw new Error("Invalid accountId");
-        if (!await this.accountService.getAccountById(depositRequest.accountId)) throw new Error("Account not found");
         if (!isValidQuantity(depositRequest.quantity)) throw new Error("Invalid quantity");
         if (!isValidAssetId(depositRequest.assetId)) throw new Error("Invalid assetId");
 
@@ -27,9 +25,7 @@ export class AssetService implements IAssetService {
         return { message: "Deposit successful" };
     }
 
-    withdraw = async (withdrawRequest: any) => {
-        if (!isValidUUID(withdrawRequest.accountId)) throw new Error("Invalid accountId");
-        if (!await this.accountService.getAccountById(withdrawRequest.accountId)) throw new Error("Account not found");
+    async withdraw(withdrawRequest: any) {
         if (!isValidAssetId(withdrawRequest.assetId)) throw new Error("Invalid assetId");
         if (!isValidQuantity(withdrawRequest.quantity)) throw new Error("Invalid quantity");
         const accountAsset = await this.assetDAO.getById(withdrawRequest.accountId, withdrawRequest.assetId);
@@ -38,5 +34,13 @@ export class AssetService implements IAssetService {
 
         await this.assetDAO.updateQuantity(withdrawRequest.accountId, withdrawRequest.assetId, -withdrawRequest.quantity);
         return { message: "Withdraw successful" };
+    }
+
+    async getAssetsByAccountId(accountId: string): Promise<any[]> {
+        return this.assetDAO.getByAccountId(accountId);
+    }
+
+    async getAssetsById(accountId: string, assetId: string): Promise<any[]> {
+        return this.assetDAO.getById(accountId, assetId);
     }
 }

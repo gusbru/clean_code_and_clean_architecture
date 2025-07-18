@@ -3,6 +3,7 @@ import pgPromise from "pg-promise";
 export default interface IAssetDAO {
     save(asset: any): Promise<void>;
     getById(accountId: string, assetId: string): Promise<any>;
+    getByAccountId(accountId: string): Promise<any[]>;
     updateQuantity(accountId: string, assetId: string, quantity: number): Promise<void>;
 }
 
@@ -32,6 +33,19 @@ export class AssetDAODatabase implements IAssetDAO {
         return asset;
     }
 
+    async getByAccountId(accountId: string): Promise<any[]> {
+        const db = pgPromise()({
+            host: "db",
+            port: 5432,
+            database: "app",
+            user: "postgres",
+            password: "postgres"
+        });
+        const assets = await db.query("select * from ccca.account_asset where account_id = $1", [accountId]);
+        await db.$pool.end();
+        return assets;
+    }
+
     async updateQuantity(accountId: string, assetId: string, quantity: number): Promise<void> {
         const db = pgPromise()({
             host: "db",
@@ -54,6 +68,10 @@ export class AssetDAOMemory implements IAssetDAO {
 
     async getById(accountId: string, assetId: string): Promise<any> {
         return this.assets.get(`${assetId}-${accountId}`);
+    }
+
+    async getByAccountId(accountId: string): Promise<any[]> {
+        return Array.from(this.assets.values()).filter(asset => asset.accountId === accountId);
     }
 
     async updateQuantity(accountId: string, assetId: string, quantity: number): Promise<void> {

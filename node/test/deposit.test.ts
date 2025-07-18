@@ -36,6 +36,6 @@ test.each([
     } catch (error: any) {
         // Then
         expect(error.response.status).toBe(422);
-        expect(error.response.data.error).toBe("Invalid accountId");
+        expect(error.response.data.error).toBe("Invalid accountId format.");
     }
 });

@@ -13,6 +13,7 @@ export default interface IAccountService {
 
 export class AccountService implements IAccountService {
     constructor(private accountDAO: IAccountDAO) {}
+
     signup = async (account: any) => {
         if (!isNameValid(account.name)) throw new Error("Invalid name format. Name must contain first and last name.");
         if (!isEmailValid(account.email)) throw new Error("Invalid Email format.");
