@@ -1,18 +1,24 @@
 import { AccountDAOMemory } from "../src/DAO/accountDAO";
+import { AssetDAOMemory } from "../src/DAO/assetDAO";
 import { OrderDAOMemory } from "../src/DAO/orderDAO";
-import IAccountService, {
-  AccountService,
-} from "../src/services/accountService";
+import { AccountAssetService } from "../src/services/accountAssetService";
+import { AccountService } from "../src/services/accountService";
+import { AssetService } from "../src/services/assetService";
 import IOrderService, { OrderService } from "../src/services/orderService";
 
 let orderService: IOrderService;
-let accountService: IAccountService;
 
 beforeEach(() => {
   const accountDAO = new AccountDAOMemory();
-  accountService = new AccountService(accountDAO);
+  const accountService = new AccountService(accountDAO);
+  const assetDAO = new AssetDAOMemory();
+  const assetService = new AssetService(assetDAO);
   const orderDAO = new OrderDAOMemory();
-  orderService = new OrderService(orderDAO, accountService);
+  const accountAssetService = new AccountAssetService(
+    accountService,
+    assetService
+  );
+  orderService = new OrderService(orderDAO, accountAssetService);
 });
 
 test("Should execute order with valid data", async () => {
@@ -22,7 +28,7 @@ test("Should execute order with valid data", async () => {
     password: "Password123",
     document: "11144477735",
   };
-  const { accountId } = await accountService.signup(newAccountInput);
+  const { accountId } = await orderService.accountAssetServiceaccountService.signup(newAccountInput);
   const inputOrder = {
     market_id: "BTC/USD",
     account_id: accountId,

@@ -1,8 +1,8 @@
 import IOrderDAO from "../DAO/orderDAO";
-import IAccountService from "./accountService";
-import IAssetService from "./assetService";
+import { IAccountAssetService } from "./accountAssetService";
 
 export default interface IOrderService {
+  accountAssetService: IAccountAssetService;
   executeOrder(order: any): Promise<string>;
   getOrders(accountId: string, status?: string): Promise<any[]>;
 }
@@ -10,11 +10,11 @@ export default interface IOrderService {
 export class OrderService implements IOrderService {
   constructor(
     private orderDAO: IOrderDAO,
-    private accountService: IAccountService
+    public accountAssetService: IAccountAssetService
   ) {}
 
   async executeOrder(order: any): Promise<string> {
-    const account = await this.accountService.getAccountById(order.account_id);
+    const account = await this.accountAssetService.accountService.getAccountById(order.account_id);
     order.accountId = account.accountId;
     order.orderId = crypto.randomUUID();
     this.validateOrder(order, account);
@@ -26,6 +26,6 @@ export class OrderService implements IOrderService {
   }
 
   private async validateOrder(order: any, account: any): Promise<void> {
-    
+
   }
 }
