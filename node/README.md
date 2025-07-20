@@ -23,4 +23,11 @@ Signup
     Output: account_id
 
 * Name deve ser composto de nome e sobrenome
-* document 
+* document
+
+## Class 2
+
+### Teste de integracao: 
+
+* teste a integracao entre duas ou mais camadas do sistema.
+* mais lentos devido a integracao com o sistema externo.

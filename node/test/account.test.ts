@@ -43,7 +43,7 @@ test.each([
         expect(true).toBe(false);
     } catch (error: any) {
         // Then
-        expect(error.response.status).toBe(400);
+        expect(error.response.status).toBe(422);
         expect(error.response.data.error).toBe("Invalid name format. Name must contain first and last name.");
     }
 });
@@ -67,7 +67,7 @@ test.each([
         throw new Error("Should not create account")
     } catch (error: any) {
         // Then
-        expect(error.response.status).toBe(400);
+        expect(error.response.status).toBe(422);
         expect(error.response.data.error).toBe("Invalid Email format.");
     }
 });
@@ -88,7 +88,7 @@ test("Should not create an account with duplicated email", async () => {
         throw new Error("Should not create account")
     } catch (error: any) {
         // Then
-        expect(error.response.status).toBe(400);
+        expect(error.response.status).toBe(422);
         expect(error.response.data.error).toBe("Duplicated email");
     }
 });
@@ -115,7 +115,7 @@ test.each([
         throw new Error("Should not create account")
     } catch (error: any) {
         // Then
-        expect(error.response.status).toBe(400);
+        expect(error.response.status).toBe(422);
         expect(error.response.data.error).toBe("Invalid document format.");
     }
 
@@ -143,7 +143,7 @@ test.each([
         throw new Error("Should not create account")
     } catch (error: any) {
         // Then
-        expect(error.response.status).toBe(400);
+        expect(error.response.status).toBe(422);
         expect(error.response.data.error).toBe("Invalid password format.");
     }
 });
