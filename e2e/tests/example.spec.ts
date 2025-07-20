@@ -15,5 +15,5 @@ test('Deve criar uma conta', async ({ page }) => {
   await page.locator('.input-document').fill(input.document);
   await page.locator('.btn-signup').click();
   await page.waitForTimeout(1000); // Espera a mensagem ser atualizada
-  await expect(page.locator('.span-message')).toHaveText('success');
+  await expect(page.locator('.span-message')).toHaveText('Account created successfully!');
 });
