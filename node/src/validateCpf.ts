@@ -22,7 +22,7 @@ function calculateDigit(document: string, factor: number): number {
     for (const digit of document) {
         if (factor > 1) total += parseInt(digit) * factor--;
     }
-    const rest = total%11;
+    const rest = total % 11;
     return (rest < 2) ? 0 : 11 - rest;
 }
 
