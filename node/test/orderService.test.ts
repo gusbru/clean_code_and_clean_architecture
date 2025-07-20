@@ -28,7 +28,7 @@ test("Should execute order with valid data", async () => {
     password: "Password123",
     document: "11144477735",
   };
-  const { accountId } = await orderService.accountAssetServiceaccountService.signup(newAccountInput);
+  const { accountId } = await orderService.accountAssetService.accountService.signup(newAccountInput);
   const inputOrder = {
     market_id: "BTC/USD",
     account_id: accountId,
